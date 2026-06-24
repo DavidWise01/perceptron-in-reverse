@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Perceptron in Reverse — reversible logic, and the cost of forgetting</title>
+<meta name="description" content="A reversible / adiabatic perceptron — the body that never erases. Landauer's principle: erasing one bit must dissipate kT·ln2 ≈ 2.87 zJ of heat; an ordinary AND gate (2 in, 1 out) throws a bit away every time. Reversible gates (Toffoli/CCNOT — bijective, self-inverse, universal) keep every bit, so they can run backward and approach zero dissipation; adiabatic switching recovers the CV²/2. The catch: garbage bits and slowness. And the deep tie: all quantum gates are reversible, so this is the classical edge of the cubi. Confidence-tiered: STRONG (Landauer, Toffoli, adiabatic CMOS) / MIDDLING (practical reversible chips) / FRONTIER (sub-Landauer at speed). The 14th and final body. David Lee Wise.">
+<style>
+  :root{--bg:#040a0e;--panel:#08131a;--panel2:#0d1c26;--edge:#163040;--ink:#e3f1f7;--dim:#94b6c4;--faint:#557082;
+    --fwd:#4fd6ff;--fwd2:#a7ecff;--bak:#54e0a0;--heat:#ff6b3d;--ok:#54e0a0;--rose:#fb7185;--amber:#fbbf24;--ember:#fb923c;
+    --mono:'SFMono-Regular',ui-monospace,'Cascadia Code',Menlo,Consolas,monospace;--serif:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--serif);line-height:1.55;background-image:radial-gradient(1100px 560px at 75% -10%,#06222e 0%,transparent 55%);}
+  .wrap{max-width:1040px;margin:0 auto;padding:42px 26px 90px}
+  header{border-bottom:1px solid var(--edge);padding-bottom:20px;margin-bottom:22px}
+  .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:var(--fwd);opacity:.95}
+  h1{font-size:33px;line-height:1.12;margin:.3em 0 .16em;font-weight:600}h1 em{color:var(--fwd2);font-style:italic}
+  .sub{color:var(--dim);font-size:15.5px;max-width:78ch}
+  .lin{font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-top:13px}.lin b{color:var(--fwd)}.lin .b{color:var(--bak)}
+  .verdicts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:20px 0}@media(max-width:720px){.verdicts{grid-template-columns:1fr}}
+  .vc{border:1px solid var(--edge);border-radius:11px;padding:12px 14px;border-top-width:3px;background:rgba(8,19,26,.6)}
+  .vc .badge{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.12em}
+  .vc.s{border-top-color:var(--ok)}.vc.s .badge{color:var(--ok)} .vc.m{border-top-color:var(--amber)}.vc.m .badge{color:var(--amber)} .vc.f{border-top-color:var(--ember)}.vc.f .badge{color:var(--ember)}
+  .vc p{font-size:12px;color:var(--dim);margin:5px 0 0;line-height:1.45}.vc p b{color:var(--ink)}
+  section{margin:34px 0}
+  h2{font-size:13px;font-family:var(--mono);letter-spacing:.22em;text-transform:uppercase;color:var(--fwd2);border-left:2px solid var(--fwd);padding-left:11px;margin:0 0 6px}
+  .lede{color:var(--dim);font-size:15px;margin:0 0 16px;max-width:80ch}
+  .panel{background:linear-gradient(180deg,var(--panel),#04090d);border:1px solid var(--edge);border-radius:14px;padding:20px;box-shadow:0 24px 60px -40px #000}
+  .controls{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:14px}
+  button{font-family:var(--mono);font-size:12px;color:var(--ink);background:#0e2330;border:1px solid var(--edge);border-radius:8px;padding:8px 13px;cursor:pointer;transition:.15s}
+  button:hover{background:#143040;border-color:var(--fwd)}button.on{background:#0e5a72;border-color:var(--fwd2);color:#fff}
+  button.in{min-width:54px}button.hi{background:#0e3a52;border-color:var(--fwd);color:var(--fwd2)}button.lo{background:#0d1c26;border-color:var(--faint);color:var(--faint)}
+  label.sl{font-family:var(--mono);font-size:11px;color:var(--dim);display:flex;align-items:center;gap:8px}input[type=range]{accent-color:var(--fwd);width:150px}
+  canvas{display:block;width:100%;border-radius:10px;background:#03070a;border:1px solid var(--edge)}
+  .cap{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:7px}
+  .pgrid{display:grid;grid-template-columns:1.1fr .9fr;gap:22px}@media(max-width:820px){.pgrid{grid-template-columns:1fr}}
+  .reads{display:flex;flex-direction:column;gap:12px}
+  .stat .v{font-family:var(--mono);font-size:24px;font-weight:600}.stat .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+  .eq{font-family:var(--mono);font-size:13px;color:var(--fwd2);background:#08131a;border:1px solid var(--edge);border-radius:8px;padding:9px 11px;display:inline-block;margin:4px 0}
+  .note{color:var(--dim);font-size:13.5px;border-left:2px solid var(--edge);padding-left:13px;margin:14px 0 0}
+  .truth{border:1px solid var(--ember);border-left-width:4px;border-radius:12px;padding:16px 20px;margin:14px 0;background:rgba(251,146,60,.06)}
+  .truth h3{font-family:var(--serif);font-size:16px;color:var(--ember);margin-bottom:8px}.truth p{font-size:13.5px;color:var(--dim);line-height:1.55}.truth b{color:var(--ink)}
+  .map{font-family:var(--mono);font-size:12.5px;display:grid;grid-template-columns:auto auto;gap:4px 14px;margin:8px 0}.map b{color:var(--fwd)}.map span{color:var(--dim)}
+  .tt{font-family:var(--mono);font-size:12px;border-collapse:collapse;margin:6px 0}.tt td,.tt th{border:1px solid var(--edge);padding:4px 9px;text-align:center}.tt th{color:var(--fwd)}
+  footer{margin-top:42px;border-top:1px solid var(--edge);padding-top:18px;color:var(--faint);font-family:var(--mono);font-size:11px;line-height:1.7}
+  footer a,.bar a{color:var(--fwd)}.bar{font-family:var(--mono);font-size:11.5px;margin-bottom:14px}.bar a{text-decoration:none;border-bottom:1px dotted #1d3a4c}
+  code{font-family:var(--mono);color:var(--fwd2);background:#08131a;padding:1px 5px;border-radius:5px}
+  .series{font-family:var(--mono);font-size:11px;color:var(--faint);text-align:center;margin-top:8px}.series b{color:var(--fwd2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="bar"><a href="https://davidwise01.github.io/ud0/">◄ UD0</a> &nbsp; <a href="https://davidwise01.github.io/perceptron-in-noise/">← noise</a> &nbsp; <a href="https://davidwise01.github.io/perceptron-in-a-cubi/">cubi (also reversible)</a> &nbsp; <a href="https://davidwise01.github.io/the-gather/">the gather</a></div>
+<header>
+  <div class="kicker">Perceptron theory · the 14th &amp; final body · no erasing</div>
+  <h1>The perceptron in <em>reverse</em></h1>
+  <div class="sub">Every gate so far paid a tax it didn't have to. An ordinary <code>AND</code> takes two bits in and gives one out — the other bit is <em>thrown away</em>, and throwing a bit away, Landauer proved, must release at least <code>kT·ln2</code> of heat. But that floor is only for <em>forgetting</em>. Build logic that never forgets — bijective gates that keep every bit, so the whole computation can run <em>backward</em> — and the floor vanishes. This body computes by refusing to erase, and recovers the energy on the way out. It is also, not by accident, the classical shadow of the cubi: every quantum gate is reversible too.</div>
+  <div class="lin"><b>forward</b> = compute, keeping all bits &nbsp;·&nbsp; <span class="b">backward</span> = uncompute, recover energy &nbsp;·&nbsp; <b>floor</b> = kT·ln2 only for erasure &nbsp;·&nbsp; gate = Toffoli</div>
+</header>
+<div class="verdicts">
+  <div class="vc s"><span class="badge">✓ STRONG</span><p><b>Landauer &amp; reversible logic.</b> The kT·ln2 erasure cost (Landauer 1961, measured 2012) and universal reversible gates (Toffoli, Fredkin; Bennett 1973) are <b>proven</b>; adiabatic CMOS recovers energy in real chips.</p></div>
+  <div class="vc m"><span class="badge">◐ MIDDLING</span><p><b>Practical reversible chips.</b> Adiabatic and reversible processors are <b>built</b> — but slow, and burdened with garbage bits and uncomputation. The energy win shows only at low clock rates.</p></div>
+  <div class="vc f"><span class="badge">◔ FRONTIER</span><p><b>Sub-Landauer at speed.</b> Fast, general computing below the erasure floor is <b>open</b> — and largely lives in the quantum world, which is reversible by nature.</p></div>
+</div>
+
+<section>
+  <h2>I · The cost of forgetting</h2>
+  <p class="lede">Landauer's principle ties information to heat: erase one bit of information and you must dissipate at least <span class="eq">kT·ln2 ≈ 2.87 zJ</span> at room temperature. A normal logic gate erases constantly — two inputs collapse to one output, and the lost input is paid for in heat. Toggle the irreversible gate below and watch the discarded bit leave as a puff of warmth.</p>
+  <div class="panel">
+    <div class="controls">a <button class="in hi" id="a1">1</button> b <button class="in lo" id="b1">0</button></div>
+    <div class="pgrid">
+      <div><canvas id="erase" width="500" height="220"></canvas><div class="cap">an irreversible <b>AND</b>: 2 bits in → 1 bit out · the lost bit dissipates as <b style="color:var(--heat)">heat</b> (≥ kT·ln2)</div></div>
+      <div class="reads">
+        <div class="stat"><div class="v" id="aout" style="color:var(--fwd2)">a AND b = 0</div><div class="k">output (one bit)</div></div>
+        <div class="stat"><div class="v" id="heat" style="color:var(--heat)">2.87 zJ</div><div class="k">minimum heat per erasure</div></div>
+        <div class="note">Information that vanishes has to go somewhere, and thermodynamics says it goes into heat. Most of what a chip dissipates is, at bottom, the cost of all the bits it forgets.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>II · A gate that keeps everything — the Toffoli</h2>
+  <p class="lede">The fix is to never discard. The <b>Toffoli</b> gate (controlled-controlled-NOT) takes three bits to three bits: it flips the third <em>only if</em> the first two are both 1, and passes the first two through untouched. Same count in and out, every input recoverable — so it's <b>bijective</b>, runs <b>backward</b> (apply it twice and you're home), and is <b>universal</b>: set the third input to 0 and the output is <code>a AND b</code>, with a and b still in hand. A reversible perceptron is built from these — the threshold computed without throwing the inputs away.</p>
+  <div class="panel">
+    <div class="controls">a <button class="in hi" id="a2">1</button> b <button class="in hi" id="b2">1</button> c <button class="in lo" id="c2">0</button>
+      <button id="back">⟲ run backward (uncompute)</button></div>
+    <div class="pgrid">
+      <div><canvas id="toff" width="500" height="230"></canvas><div class="cap">the Toffoli gate · <b style="color:var(--fwd)">forward →</b> computes, <b style="color:var(--bak)">backward ⟲</b> recovers · with c=0, c′ = a AND b (a, b preserved)</div></div>
+      <div class="reads">
+        <table class="tt"><tr><th>a b c</th><th>→ a b c′</th></tr><tr><td>1 1 0</td><td>1 1 <b style="color:var(--bak)">1</b></td></tr><tr><td>1 0 0</td><td>1 0 0</td></tr><tr><td>0 1 0</td><td>0 1 0</td></tr></table>
+        <div class="map"><b>bijective</b><span>= 8 ins → 8 outs, nothing lost</span><b>self-inverse</b><span>= twice = identity</span><b>universal</b><span>= AND with c=0</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>III · The recovery, the bridge, and the bill</h2>
+  <p class="lede">If you also switch <em>slowly</em> — charge each capacitor gently instead of slamming it — you recover most of the <code>½CV²</code> you'd normally burn. That's <b>adiabatic</b> logic: dissipation falls as you slow down, trading speed for near-free computation. And here's the quiet endnote of the whole series: because reversible logic and quantum logic are the same demand — keep all the information, run unitary — <b>this body is the classical doorstep of the cubi.</b></p>
+  <div class="pgrid">
+    <div class="panel">
+      <div class="controls"><label class="sl">clock speed <input type="range" id="spd" min="5" max="100" value="60"></label></div>
+      <canvas id="adia" width="380" height="220"></canvas>
+      <div class="cap">slower switching → more of ½CV² recovered (the speed ↔ energy trade)</div>
+    </div>
+    <div>
+      <div class="truth"><h3>The honest bill</h3><p>Reversibility doesn't make computing free. You pay in <b>garbage bits</b> (the records you keep so nothing is erased) and in <b>speed</b> (adiabatic means slow). The energy win is real but only cashes out at low clock rates, which is why your laptop isn't reversible. Its true home is where erasure is forbidden anyway — <b>quantum hardware</b> — and at the ultimate-efficiency edge of classical design. A beautiful floor, rarely the fast floor.</p></div>
+      <p class="note">And so the road closes where it has to: fourteen bodies, from a branch predictor guessing one bit to a gate that refuses to forget one. The gate kept open the whole way — <em>say what's true, mark what's hoped</em> — and the last word is the cleanest: the only way to compute for free is to never throw anything away.</p>
+      <div class="series">…sound · DNA · N-cubi · noise · <b>reverse</b> &nbsp;—&nbsp; the road closes</div>
+    </div>
+  </div>
+</section>
+<footer>
+  THE PERCEPTRON IN REVERSE · the 14th &amp; final body · two-layer honest<br>
+  verified in Node · Landauer kT·ln2 = 2.87 zJ/bit at 300 K · Toffoli bijective (8→8), self-inverse, computes AND with inputs kept · adiabatic recovers ½CV² as clock slows<br>
+  Landauer 1961 (measured: Bérut et al. 2012) · Bennett 1973 (reversible computation) · Toffoli / Fredkin gates · adiabatic CMOS · all quantum gates are reversible<br>
+  siblings: <a href="https://davidwise01.github.io/perceptron-in-noise/">noise</a> · <a href="https://davidwise01.github.io/perceptron-in-a-cubi/">cubi</a> · <a href="https://davidwise01.github.io/the-gather/">the gather</a> · governor David Lee Wise · CC-BY-ND-4.0
+</footer>
+</div>
+<script>
+"use strict";
+function fit(cv){const r=cv.getBoundingClientRect();const d=window.devicePixelRatio||1;cv.width=r.width*d;cv.height=r.height*d;const g=cv.getContext('2d');g.setTransform(d,0,0,d,0,0);return{g,w:r.width,h:r.height};}
+// MODULE I : erasure
+(function(){
+  const cv=document.getElementById('erase');let a=1,b=0,puffs=[],t=0;
+  function draw(){const{g,w,h}=fit(cv);g.clearRect(0,0,w,h);t++;
+    const out=a&b;
+    // inputs
+    [[a,'a',h*0.32],[b,'b',h*0.62]].forEach(([v,lab,y])=>{g.fillStyle=v?'#4fd6ff':'#557082';g.beginPath();g.arc(w*0.16,y,12,0,7);g.fill();
+      g.fillStyle='#03070a';g.font='bold 12px ui-monospace,monospace';g.textAlign='center';g.fillText(v,w*0.16,y+4);
+      g.fillStyle='#94b6c4';g.fillText(lab,w*0.16-26,y+4);g.strokeStyle='#163040';g.beginPath();g.moveTo(w*0.16+12,y);g.lineTo(w*0.44,h*0.47);g.stroke();});
+    // AND gate body
+    g.fillStyle='#0e2330';g.strokeStyle='#4fd6ff';g.lineWidth=2;g.beginPath();g.moveTo(w*0.44,h*0.28);g.lineTo(w*0.56,h*0.28);g.arc(w*0.56,h*0.47,h*0.19,-Math.PI/2,Math.PI/2);g.lineTo(w*0.44,h*0.66);g.closePath();g.fill();g.stroke();
+    g.fillStyle='#557082';g.font='11px ui-monospace,monospace';g.fillText('AND',w*0.51,h*0.5);
+    // output
+    g.strokeStyle='#163040';g.beginPath();g.moveTo(w*0.56+h*0.19,h*0.47);g.lineTo(w*0.86,h*0.47);g.stroke();
+    g.fillStyle=out?'#a7ecff':'#557082';g.beginPath();g.arc(w*0.88,h*0.47,12,0,7);g.fill();g.fillStyle='#03070a';g.font='bold 12px ui-monospace,monospace';g.fillText(out,w*0.88,h*0.51);
+    // heat puffs (one bit erased per evaluation)
+    if(t%50===0){for(let k=0;k<4;k++)puffs.push({x:w*0.5,y:h*0.47,vx:(Math.random()-.5)*1.5,vy:-1-Math.random(),a:1});}
+    puffs.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.a-=0.02;});puffs=puffs.filter(p=>p.a>0);
+    puffs.forEach(p=>{g.fillStyle='rgba(255,107,61,'+p.a+')';g.beginPath();g.arc(p.x,p.y,3,0,7);g.fill();});
+    g.fillStyle='#ff6b3d';g.font='9px ui-monospace,monospace';g.fillText('heat ↑ (erased bit)',w*0.5,h*0.18);
+    document.getElementById('aout').textContent='a AND b = '+out;
+    requestAnimationFrame(draw);}
+  document.getElementById('a1').onclick=function(){a^=1;this.className='in '+(a?'hi':'lo');this.textContent=a;};
+  document.getElementById('b1').onclick=function(){b^=1;this.className='in '+(b?'hi':'lo');this.textContent=b;};
+  draw();
+})();
+// MODULE II : Toffoli
+(function(){
+  const cv=document.getElementById('toff');let a=1,b=1,c=0,dir=1,t=0;
+  function out(){return [a,b,c^(a&b)];}
+  function draw(){const{g,w,h}=fit(cv);g.clearRect(0,0,w,h);t++;
+    const o=out();const rows=[[a,o[0],'a',h*0.25],[b,o[1],'b',h*0.5],[c,o[2],'c',h*0.75]];
+    rows.forEach(([iv,ov,lab,y],i)=>{
+      g.strokeStyle='#163040';g.lineWidth=1.5;g.beginPath();g.moveTo(w*0.18,y);g.lineTo(w*0.82,y);g.stroke();
+      // input
+      g.fillStyle=iv?'#4fd6ff':'#557082';g.beginPath();g.arc(w*0.14,y,11,0,7);g.fill();g.fillStyle='#03070a';g.font='bold 11px ui-monospace,monospace';g.textAlign='center';g.fillText(iv,w*0.14,y+4);
+      // output
+      g.fillStyle=ov?(i===2?'#54e0a0':'#a7ecff'):'#557082';g.beginPath();g.arc(w*0.86,y,11,0,7);g.fill();g.fillStyle='#03070a';g.fillText(ov,w*0.86,y+4);
+      g.fillStyle='#94b6c4';g.fillText(lab,w*0.14-22,y+4);});
+    // control dots on a,b ; target ⊕ on c
+    g.fillStyle='#4fd6ff';g.beginPath();g.arc(w*0.5,h*0.25,6,0,7);g.fill();g.beginPath();g.arc(w*0.5,h*0.5,6,0,7);g.fill();
+    g.strokeStyle='#4fd6ff';g.lineWidth=2;g.beginPath();g.moveTo(w*0.5,h*0.25);g.lineTo(w*0.5,h*0.75);g.stroke();
+    g.beginPath();g.arc(w*0.5,h*0.75,11,0,7);g.stroke();g.beginPath();g.moveTo(w*0.5-11,h*0.75);g.lineTo(w*0.5+11,h*0.75);g.moveTo(w*0.5,h*0.75-11);g.lineTo(w*0.5,h*0.75+11);g.stroke();
+    // direction arrow
+    g.fillStyle=dir>0?'#4fd6ff':'#54e0a0';g.font='12px ui-monospace,monospace';g.fillText(dir>0?'forward →':'⟲ backward',w*0.5,h*0.07);
+    requestAnimationFrame(draw);}
+  function tog(v,el){return v^1;}
+  document.getElementById('a2').onclick=function(){a^=1;this.className='in '+(a?'hi':'lo');this.textContent=a;};
+  document.getElementById('b2').onclick=function(){b^=1;this.className='in '+(b?'hi':'lo');this.textContent=b;};
+  document.getElementById('c2').onclick=function(){c^=1;this.className='in '+(c?'hi':'lo');this.textContent=c;};
+  document.getElementById('back').onclick=function(){dir=-dir;this.classList.toggle('on',dir<0);
+    // uncompute: applying Toffoli again restores — demonstrate by setting c to the computed value then back
+    const o=[a,b,c^(a&b)];a=o[0];b=o[1];c=o[2];document.getElementById('c2').className='in '+(c?'hi':'lo');document.getElementById('c2').textContent=c;};
+  draw();
+})();
+// MODULE III : adiabatic
+(function(){
+  const cv=document.getElementById('adia');let spd=0.6,t=0;
+  function draw(){const{g,w,h}=fit(cv);g.clearRect(0,0,w,h);t++;
+    // recovered fraction rises as speed falls
+    const recovered=1-spd;const dissip=spd;
+    // two bars: dissipated vs recovered
+    const bx=w*0.2,bw=w*0.25;
+    g.fillStyle='#0d1c26';g.fillRect(bx,30,bw,h-60);g.fillStyle='#ff6b3d';g.fillRect(bx,30+(h-60)*(1-dissip),bw,(h-60)*dissip);
+    g.fillStyle='#557082';g.font='10px ui-monospace,monospace';g.textAlign='center';g.fillText('dissipated',bx+bw/2,h-12);
+    const bx2=w*0.6;g.fillStyle='#0d1c26';g.fillRect(bx2,30,bw,h-60);g.fillStyle='#54e0a0';g.fillRect(bx2,30+(h-60)*(1-recovered),bw,(h-60)*recovered);
+    g.fillStyle='#557082';g.fillText('recovered',bx2+bw/2,h-12);
+    g.fillStyle='#94b6c4';g.font='11px ui-monospace,monospace';g.fillText((spd<0.3?'slow → near-free':spd<0.7?'medium':'fast → ½CV² burned'),w/2,16);
+    requestAnimationFrame(draw);}
+  document.getElementById('spd').oninput=function(){spd=this.value/100;};
+  draw();
+})();
+</script>
+</body>
+</html>
